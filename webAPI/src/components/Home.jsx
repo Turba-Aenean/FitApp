@@ -97,15 +97,15 @@ const Home = function(props){
                             <h3>Ryan Whitworth</h3>
                             <p style={{color: '#868e96', fontSize:'14px'}}>
                                Ryan Whitworth is a Software Engineer with Fullstack Development Experience in both Mobile and Web Applications.
-                               He has worked both independently and on development teams to create production grade applications that meet client specifications. 
-                               
+                               He has worked both independently and on development teams to create production grade applications that meet client specifications
+                               and has worked with several front and backend frameworks.                               
                             </p>
                             </div>
                     </Grid.Column>
                 </Grid.Row>
 
                 <Grid.Row style={{padding:'2%'}} >
-                    <Grid.Column style={{width: textAlign: 'center'}}>
+                    <Grid.Column style={{textAlign: 'center'}}>
                         <Image src='https://media.licdn.com/media/AAMABADuAAgAAQAAAAAAAA-8AAAAJDliNGE2NDlhLWYzYzItNDcyZS1hODQ1LTUxZDU1YWQ5MzAxNg.bin' centered size='small' avatar/>
                         <div>
                             <h3>Ethan Lipkind</h3>

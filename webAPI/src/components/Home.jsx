@@ -96,15 +96,16 @@ const Home = function(props){
                         <div>
                             <h3>Ryan Whitworth</h3>
                             <p style={{color: '#868e96', fontSize:'14px'}}>
-                                Ryan Whitworth is a Software Engineer with Fullstack Development Experience in both Mobile and Web Applications.
-                                He is a gift from god and will fix your code before he breaks your heart.
+                               Ryan Whitworth is a Software Engineer with Fullstack Development Experience in both Mobile and Web Applications.
+                               He has worked both independently and on development teams to create production grade applications that meet client specifications. 
+                               
                             </p>
                             </div>
                     </Grid.Column>
                 </Grid.Row>
 
                 <Grid.Row style={{padding:'2%'}} >
-                    <Grid.Column style={{textAlign: 'center'}}>
+                    <Grid.Column style={{width: textAlign: 'center'}}>
                         <Image src='https://media.licdn.com/media/AAMABADuAAgAAQAAAAAAAA-8AAAAJDliNGE2NDlhLWYzYzItNDcyZS1hODQ1LTUxZDU1YWQ5MzAxNg.bin' centered size='small' avatar/>
                         <div>
                             <h3>Ethan Lipkind</h3>
@@ -117,7 +118,9 @@ const Home = function(props){
                         <Image src='https://avatars1.githubusercontent.com/u/30841820?s=400&u=8f1599e9dfdaa4c8e2f71c4afa6540b1e0425283&v=4' centered size='small' avatar/>
                         <div>
                             <h3>Christopher Peter</h3>
-                            <p style={{color: '#868e96', fontSize:'14px'}}>Chris is a Pro at being a Pro and has a lot of Pro experience. He can Console.log to save all your apps and lives.</p>
+                            <p style={{color: '#868e96', fontSize:'14px'}}>
+                             
+                             </p>
                         </div>
                         
                     </Grid.Column>

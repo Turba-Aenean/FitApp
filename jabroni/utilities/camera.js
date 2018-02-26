@@ -1,24 +1,10 @@
 import React from 'react';
 import { Text, View, TouchableOpacity, TouchableHighlight, Dimensions, Button, Image, AsyncStorage, StyleSheet, Alert } from 'react-native';
 import { Camera, Permissions } from 'expo';
-const upload = require('../../s3_utilities.js').upload;
+const {cloudinary} = require('../../TOKENS.js');
+const s3_upload = require('../../s3_utilities.js').upload;
+const CryptoJS = require('crypto-js');
 
-// import * as firebase from 'firebase';
-// import TOKENS from '../../TOKENS.js';
-// import firebase from './firebase.js'
-
-// const firebaseConfig = {
-//   apiKey: TOKENS.firebaseConfig.apiKey,
-//   authDomain: TOKENS.firebaseConfig.authDomain,
-//   databaseURL: TOKENS.firebaseConfig.databaseURL,
-//   projectId: TOKENS.firebaseConfig.projectId,
-//   storageBucket: TOKENS.firebaseConfig.storageBucket,
-//   messagingSenderId: TOKENS.firebaseConfig.messagingSenderId,
-// };
-
-// const firebaseApp = firebase.initializeApp(firebaseConfig);
-// const imageStore = firebase.storage().ref().child('images');
-// const database = firebase.database();
 
 export default class CameraExample extends React.Component {
   constructor(props) {
@@ -35,6 +21,7 @@ export default class CameraExample extends React.Component {
     this.snap = this.snap.bind(this);
     this.save = this.save.bind(this);
     this.cancel = this.cancel.bind(this);
+    this.upload = this.upload.bind(this);
   }
 
   async componentWillMount() {
@@ -53,6 +40,29 @@ export default class CameraExample extends React.Component {
 
   goBack() {
     this.props.navigation.goBack();
+  }
+
+  upload(uri) {
+    let timestamp = (Date.now() / 1000 | 0).toString();
+    let api_key = cloudinary.API_KEY;
+    let api_secret = cloudinary.API_SECRET;
+    let cloud = cloudinary.CLOUD_NAME;
+    let hash_string = 'timestamp=' + timestamp + api_secret
+    let signature = CryptoJS.SHA1(hash_string).toString();
+    let upload_url = 'https://api.cloudinary.com/v1_1/' + cloud + '/image/upload'
+
+    let xhr = new XMLHttpRequest();
+    xhr.open('POST', upload_url);
+    xhr.onload = () => {
+      // store cloudinary public url in s3
+      s3_upload('v' + JSON.parse(xhr._response).version + '\'' + JSON.parse(xhr._response).public_id + '.jpg', this.state.userID, Date.now().toString());
+    };
+    let formdata = new FormData();
+    formdata.append('file', {uri: uri, type: 'image/png', name: 'upload.png'});
+    formdata.append('timestamp', timestamp);
+    formdata.append('api_key', api_key);
+    formdata.append('signature', signature);
+    xhr.send(formdata);
   }
 
   snap() {
@@ -87,34 +97,16 @@ export default class CameraExample extends React.Component {
         this.setState({saveMessageDisplay: false})
       }, 2000);
     });
-    // Alert.alert('photo saved!');
 
     this.setState({
       reviewMode: false,
       pic: null
     });
 
-    upload(this.state.pic.exif.DateTimeOriginal, this.state.pic.base64, this.state.userID);
-
-    // // use id to set up path in firebase storage for this user's pictures
-    // let folder = imageStore.child(this.state.userID.toString());
-    // let fileName = this.state.pic.exif.DateTimeOriginal; // timestamp
-
-    // // save image to fireStore
-    // let address = folder.child(fileName);
-    // address.putString(this.state.pic.base64).then((snapshot) => {
-    //   // save reference to file in firebase database so it can be downloaded later:
-    //   database.ref('imgURLs').child(this.state.userID.toString()+'/'+fileName).set({
-    //     name: fileName
-    //   });
-
-    // }).catch(err => {
-    //   console.log('firebase save error: ', err);
-    // })
+    this.upload(this.state.pic.uri);
   }
 
   render() {
-    console.log('in camera!');
     const { hasCameraPermission } = this.state;
     const { width, height } = Dimensions.get('window');
     if (hasCameraPermission === null) {

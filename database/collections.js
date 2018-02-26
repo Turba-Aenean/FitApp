@@ -60,6 +60,55 @@ module.exports.setUser = (obj) => {
 	});
 }
 
+module.exports.connectionRequest = (obj) =>{
+	if(obj.delete){
+		console.log('inside delete')
+	return new models.User({id: obj.id}).fetch().then((model) =>{
+		let temp = model.get('connection_requests') || '[]'
+		if(temp){
+			temp = JSON.parse(temp)
+		}
+		let identity = JSON.parse(obj.connection_requests)
+		temp2 = _.filter(temp, (val) => {
+			console.log('whats this filter val', val)
+			let foo = JSON.parse(val)
+			if(foo.id !== identity.id){
+				return true
+			} else{
+				return false
+			}
+		})
+		console.log('what are we setting this as?', temp2)
+	    model.set('connection_requests', JSON.stringify(temp2))
+	    model.save()
+	    return model.attributes;
+	}) 
+	} else{
+	console.log('inside collections', obj)
+	return new models.User({id: obj.id}).fetch().then((model) =>{
+		let temp = model.get('connection_requests') || '[]'
+		if(temp){
+			temp = JSON.parse(temp)
+		}
+		console.log('whats temp doe', temp)
+		temp.push(obj.connection_requests)
+	    model.set('connection_requests', JSON.stringify(temp))
+	    model.save()
+	    return model.attributes;
+	}) 
+  }
+} 
+module.exports.updateUser = (obj) => {
+	// update the profile_data column
+	return models.User.where({id: obj.user_id}).fetch().then((model) => {
+		let data = JSON.parse(model.attributes.profile_data);
+		data['profilePictureURL'] = obj.profile_data;
+		return model.save('profile_data', JSON.stringify(data), {}, {method: "update"}).then((newModel) => {
+			return newModel.attributes;
+		});		
+	});
+}
+
 module.exports.getUserByID = (id) => {
 	// lookup a user by their user_id
 	return new models.User({id: id}).fetch().then((obj) => {
@@ -171,21 +220,29 @@ module.exports.setSpotter = (obj) => {
 
 module.exports.getSpotters = (id, type) => {
 	let result = [];
-	if ( type === "trainer" ) {
+	// if ( type === "trainer" ) {
 		return models.Spotter.where({trainer_id: id}).fetchAll().then((obj) => {
 			obj.forEach(model => {
 				result.push(model.attributes);
 			});
-			return result;
-		});
-	} else if ( type === "client" ) {
-		return models.Spotter.where({client_id: id}).fetchAll().then((obj) => {
-			obj.forEach(model => {
+			return models.Spotter.where({client_id: id}).fetchAll().then((obj) => {
+			  obj.forEach(model => {
 				result.push(model.attributes);
-			});
-			return result;
+			  });
+			  return result;
+			
+		      });
+			// return result;
+
 		});
-	}
+	// } else if ( type === "client" ) {
+	// 	return models.Spotter.where({client_id: id}).fetchAll().then((obj) => {
+	// 		obj.forEach(model => {
+	// 			result.push(model.attributes);
+	// 		});
+	// 		return result;
+	// 	});
+	// }
 }
 
 module.exports.setChatRoom = (obj) => {
@@ -216,7 +273,7 @@ module.exports.getChatRoomsByRoomId = (id) => {
 		});
 		return result;
 	});
-} 
+}
 
 // var results = []
 // return models.Chat_Room.where({user_id: id}).fetchAll().then((rooms) => {

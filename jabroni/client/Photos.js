@@ -13,17 +13,16 @@ import {
 } from "react-native";
 import NavFooter from "./FooterNav.js";
 import Chat from "../utilities/chatIcon.js";
-import firebase from "../utilities/firebase.js";
+import { graphql, withApollo } from 'react-apollo';
 var moment = require("moment");
+import axios from 'axios';
 
 const trash = require("../../images/trash.png");
-
-const imageStore = firebase.storage();
-const database = firebase.database();
-
+const s3 = require('../../s3_utilities.js');
 const width = Dimensions.get("window").width;
 const height = Dimensions.get("window").height;
-
+import {updateUser} from '../utilities/mutations.js';
+console.log('update user: ', updateUser);
 const styles = StyleSheet.create({
 	galleryContainer: {
 		width: width,
@@ -113,6 +112,9 @@ const styles = StyleSheet.create({
 		height: '100%',
 		tintColor: 'white',
 		backgroundColor: 'black'
+	},
+	timestamp: {
+		color: "white"
 	}
 });
 
@@ -121,12 +123,11 @@ class Photos extends React.Component {
 		super(props);
 		this.state = {
 			userID: null,
-			photos: [],
+			photos: [], // [[URL1, timestamp1], [URL2, timestamp2], ...]
 			index: 0,
-			loading: true,
+			loading: false,
 			showButtons: false
 		};
-		this.downloadPic = this.downloadPic.bind(this);
 		this.next = this.next.bind(this);
 		this.prev = this.prev.bind(this);
 		this.setProfPic = this.setProfPic.bind(this);
@@ -140,62 +141,38 @@ class Photos extends React.Component {
 				console.log("async storage error: ", err);
 			} else {
 				this.setState({ userID: JSON.parse(val).id }, () => {
-					// use ID look up references to photo names in database
-					database
-						.ref("imgURLs/" + this.state.userID.toString())
-						.once("value", snapshot => {
-							// snapshot.val() is an object. iterate throgh object to get all the names of img files in imageStore:
-							let obj = snapshot.val();
-							let fileNames = [];
-							for (var key in obj) {
-								fileNames.push(key);
-							}
-							// download files from the imageStore and store them in state.
-							fileNames.forEach(name => {
-								let url = imageStore
-									.ref("images/" + this.state.userID.toString() + "/" + name)
-									.getDownloadURL()
-									.then(url => {
-										this.downloadPic(url, name, fileNames.length);
-									});
-							});
+				AsyncStorage.getItem("@FitApp:UserPics", (err, val) => {
+					if ( err ) {
+						console.log("async storage error: ", err);
+					} else {
+						let tuples = JSON.parse(val);
+						this.setState({photos: tuples}, () => {
+							console.log('set state in photo gallery: ', this.state.photos);
 						});
+					}
+				});
 				});
 			}
 		});
 	}
 
-	downloadPic(url, name, length) {
-		var xhr = new XMLHttpRequest();
-		xhr.responseType = "text";
-		xhr.onload = event => {
-			let photos = this.state.photos;
-			photos.push([name, xhr.response]); // [timestamp, base64 string]
-			photos = photos.sort((a, b) => {
-				return a[0].localeCompare(b[0]) * -1; // newest photo should appear first
-			});
-			this.setState({ photos: photos }, () => {
-				if (this.state.photos.length === length) {
-					this.setState({ loading: false });
-				}
-			});
-		};
-		xhr.open("GET", url);
-		xhr.send();
-	}
-
 	setProfPic(e) {
 		e.preventDefault();
-		let pic = this.state.photos[this.state.index]; // a tuple - idx 1 is the base64 string
-		imageStore
-			.ref("images/" + this.state.userID.toString())
-			.child("profilePicture")
-			.putString(pic[1])
-			.then(() => {
-				console.log("saved profile picture to firebase storage.");
-				// save pic to async storage as well to improve load time later:
-				// AsyncStorage.setItem('@FitApp:profilePicture', pic[1]); // there were problems reading from asyncStorage, so scrapping for now.
-			});
+		this.props.client.mutate({
+			mutation: updateUser,
+			variables: {
+				user_id: this.state.userID, 
+				profile_data: this.state.photos[this.state.index][0]
+			}
+		}).then((response) => {
+			console.log('successfully set profile picture in SQL: ', response);
+			// set in async storage as well
+			AsyncStorage.setItem("@FitApp: profilePictureURL", this.state.photos[this.state.index][0]).then(() => {
+				console.log('successfully set profile picture in async storage');
+			})
+		}).catch((err) => {
+			console.log('error setting profile picture: ', err);
+		})
 	}
 
 	toggleButtons(e) {
@@ -203,33 +180,39 @@ class Photos extends React.Component {
 		this.setState({ showButtons: !this.state.showButtons });
 	}
 
+
+
 	delete(e) {
 		e.preventDefault();
-		// remove photo from firebase storage:
-		let fileName = this.state.photos[this.state.index][0];
-		imageStore
-			.ref("images/" + this.state.userID.toString() + "/" + fileName)
-			.delete()
-			.then(() => {
-				// remove reference to photo from imgURLs:
-				database
-					.ref("imgURLs/" + this.state.userID.toString() + "/" + fileName)
-					.remove()
-					.then(() => {
-						Alert.alert("photo deleted.");
-						// remove the photo from component state:
-						let p = this.state.photos;
-						p.splice(this.state.index, 1);
-						let i = this.state.index === 0 ? 0 : -1;
-						this.setState({ photos: p, index: i });
-					})
-					.catch(err => {
-						console.error("firebase database delete error: ", err);
-					});
-			})
-			.catch(err => {
-				console.error("firebase storage delete error: ", err);
-			});
+
+		// before sending the key to be deleted, you need to:
+		let key = this.state.photos[0];
+		let url = key[0].split('upload/')[1];
+		let timestamp = key[1];
+		// append timestamp to end
+		url += "TIMESTAMP="+timestamp;
+		url = url.split('/').join('\'');
+		console.log('url to delete: ',url);
+
+		s3.delete(this.state.userID, url);
+
+		// remove key from state
+		let p = this.state.photos;
+		p.splice(this.state.index, 1);
+		let i = this.state.index;
+		if ( i > 0 ) {
+			i--;
+		}
+		this.setState({index: i, photos: p}); 
+		// remove key from asyncStorage
+		AsyncStorage.setItem("@FitApp: UserPics", JSON.stringify(p))
+		.then(() => {
+			console.log('successfully spliced photo key from async storage')
+		})
+		.catch((err) => {
+			console.log('error splicing photo key from async storage: ', err);
+		});
+
 	}
 
 	next(e) {
@@ -256,11 +239,7 @@ class Photos extends React.Component {
 		return (
 			<View style={{"backgroundColor":"black", flexDirection: 'column', width: width, height: height}}>
 				<View style={styles.galleryContainer}>
-					{this.state.loading ? (
-						<View style={styles.loadingMessageContainer}>
-							<Text style={styles.loadingMessage}>Loading!</Text>
-						</View>
-					) : this.state.photos.length === 0 ? (
+					{this.state.photos.length === 0 ? (
 						<View style={styles.galleryContainer}>
 							<Text>No photos to display.</Text>
 						</View>
@@ -287,6 +266,7 @@ class Photos extends React.Component {
 										title="set profile picture"
 									/>
 								</View>
+
 							) : null}
 							<View style={{ width: "100%", height: "100%" }}>
 								<TouchableHighlight
@@ -294,10 +274,11 @@ class Photos extends React.Component {
 									onPress={this.toggleButtons}
 								>
 									<Image
-										source={{ uri: `data:image/jpg;base64,${curr[1]}` }}
+										source={{uri: "https://res.cloudinary.com/dvhehr6k8/image/fetch/"+curr[0]}}
 										style={styles.image}
 									/>
 								</TouchableHighlight>
+								{this.state.showButtons ? <Text style={styles.timestamp}>{moment(parseInt(curr[1])).format('LLLL')}</Text> : null }
 							</View>
 						</View>
 					)}
@@ -309,4 +290,6 @@ class Photos extends React.Component {
 	}
 }
 
-export default Photos;
+export default withApollo(Photos);
+
+1518540420
